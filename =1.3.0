@@ -1,0 +1,13 @@
+Collecting opentelemetry-semantic-conventions==0.60b1
+  Downloading opentelemetry_semantic_conventions-0.60b1-py3-none-any.whl.metadata (2.4 kB)
+Collecting shellingham
+  Downloading shellingham-1.5.4-py2.py3-none-any.whl.metadata (3.5 kB)
+Requirement already satisfied: opentelemetry-api==1.39.1 in .\.venv\Lib\site-packages (from opentelemetry-semantic-conventions==0.60b1) (1.39.1)
+Requirement already satisfied: typing-extensions>=4.5.0 in .\.venv\Lib\site-packages (from opentelemetry-semantic-conventions==0.60b1) (4.15.0)
+Requirement already satisfied: importlib-metadata<8.8.0,>=6.0 in .\.venv\Lib\site-packages (from opentelemetry-api==1.39.1->opentelemetry-semantic-conventions==0.60b1) (8.7.1)
+Requirement already satisfied: zipp>=3.20 in .\.venv\Lib\site-packages (from importlib-metadata<8.8.0,>=6.0->opentelemetry-api==1.39.1->opentelemetry-semantic-conventions==0.60b1) (3.23.0)
+Downloading opentelemetry_semantic_conventions-0.60b1-py3-none-any.whl (219 kB)
+Downloading shellingham-1.5.4-py2.py3-none-any.whl (9.8 kB)
+Installing collected packages: shellingham, opentelemetry-semantic-conventions
+
+Successfully installed opentelemetry-semantic-conventions-0.60b1 shellingham-1.5.4
