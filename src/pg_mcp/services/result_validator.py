@@ -1,15 +1,17 @@
-"""Result validation service using OpenAI for query result verification.
+"""Result validation service using Gemini for query result verification.
 
-This module provides the ResultValidator class that uses OpenAI's LLM to validate
+This module provides the ResultValidator class that uses Gemini's LLM to validate
 whether query results correctly match the user's original question.
 """
 
+import asyncio
 import json
 from typing import TYPE_CHECKING, Any
 
-from openai import AsyncOpenAI
+import google.generativeai as genai
+from google.generativeai.types import GenerationConfig
 
-from pg_mcp.config.settings import OpenAIConfig, ValidationConfig
+from pg_mcp.config.settings import GeminiConfig, ValidationConfig
 from pg_mcp.models.errors import LLMError, LLMTimeoutError, LLMUnavailableError
 from pg_mcp.models.query import ResultValidationResult
 from pg_mcp.prompts.result_validation import (
@@ -17,19 +19,16 @@ from pg_mcp.prompts.result_validation import (
     build_validation_prompt,
 )
 
-if TYPE_CHECKING:
-    from openai.types.chat import ChatCompletion
-
 
 class ResultValidator:
-    """Result validator using OpenAI for query result verification.
+    """Result validator using Gemini for query result verification.
 
-    This class handles the interaction with OpenAI's API to validate whether
+    This class handles the interaction with Gemini's API to validate whether
     query results correctly answer the user's original question. It provides
     confidence scoring and suggestions for improvement.
 
     Example:
-        >>> config = OpenAIConfig(api_key="sk-...", model="gpt-4")
+        >>> config = GeminiConfig(api_key="AIza...", model="gemini-3-flash-preview")
         >>> validation_config = ValidationConfig(confidence_threshold=70)
         >>> validator = ResultValidator(config, validation_config)
         >>> result = await validator.validate(
@@ -42,20 +41,21 @@ class ResultValidator:
 
     def __init__(
         self,
-        openai_config: OpenAIConfig,
+        gemini_config: GeminiConfig,
         validation_config: ValidationConfig,
     ) -> None:
-        """Initialize result validator with OpenAI and validation configuration.
+        """Initialize result validator with Gemini and validation configuration.
 
         Args:
-            openai_config: OpenAI configuration including API key and model settings.
+            gemini_config: Gemini configuration including API key and model settings.
             validation_config: Validation configuration including thresholds and timeouts.
         """
-        self.openai_config = openai_config
+        self.gemini_config = gemini_config
         self.validation_config = validation_config
-        self.client = AsyncOpenAI(
-            api_key=openai_config.api_key.get_secret_value(),
-            timeout=validation_config.timeout_seconds,
+        genai.configure(api_key=gemini_config.api_key.get_secret_value())
+        self.model = genai.GenerativeModel(
+            model_name=gemini_config.model,
+            system_instruction=RESULT_VALIDATION_SYSTEM_PROMPT,
         )
 
     async def validate(
@@ -117,31 +117,29 @@ class ResultValidator:
         )
 
         try:
-            # Call OpenAI API with structured JSON output
-            response: ChatCompletion = await self.client.chat.completions.create(
-                model=self.openai_config.model,
-                messages=[
-                    {"role": "system", "content": RESULT_VALIDATION_SYSTEM_PROMPT},
-                    {"role": "user", "content": prompt},
-                ],
-                max_tokens=500,
-                temperature=0.0,  # Use deterministic output for validation
-                response_format={"type": "json_object"},  # Ensure JSON response
+            generation_config = GenerationConfig(
+                temperature=0.0,
+                max_output_tokens=500,
+                response_mime_type="application/json",
+            )
+
+            # Call Gemini API with structured JSON output
+            response = await asyncio.wait_for(
+                self.model.generate_content_async(
+                    prompt,
+                    generation_config=generation_config,
+                ),
+                timeout=self.validation_config.timeout_seconds
             )
 
             # Extract and parse the response
-            if not response.choices:
+            if not response or not response.text:
                 raise LLMError(
-                    message="OpenAI returned empty response for result validation",
-                    details={"response": response.model_dump()},
+                    message="Gemini returned empty response for result validation",
+                    details={"response": str(response)},
                 )
 
-            content = response.choices[0].message.content
-            if not content:
-                raise LLMError(
-                    message="OpenAI returned empty message content for result validation",
-                    details={"response": response.model_dump()},
-                )
+            content = response.text
 
             # Parse JSON response
             try:
@@ -178,7 +176,7 @@ class ResultValidator:
                 is_acceptable=is_acceptable,
             )
 
-        except TimeoutError as e:
+        except asyncio.TimeoutError as e:
             timeout = self.validation_config.timeout_seconds
             raise LLMTimeoutError(
                 message=f"Result validation timed out after {timeout}s",
@@ -196,16 +194,16 @@ class ResultValidator:
             # Re-raise LLM errors as-is
             raise
         except Exception as e:
-            # Handle various OpenAI errors
+            # Handle various Gemini errors
             error_msg = str(e)
-            if "authentication" in error_msg.lower() or "api_key" in error_msg.lower():
+            if "API_KEY_INVALID" in error_msg or "authentication" in error_msg.lower():
                 raise LLMUnavailableError(
-                    message="OpenAI API authentication failed - check API key",
+                    message="Gemini API authentication failed - check API key",
                     details={"error": error_msg},
                 ) from e
-            if "rate_limit" in error_msg.lower():
+            if "429" in error_msg or "rate_limit" in error_msg.lower():
                 raise LLMUnavailableError(
-                    message="OpenAI API rate limit exceeded",
+                    message="Gemini API rate limit exceeded",
                     details={"error": error_msg},
                 ) from e
             raise LLMError(

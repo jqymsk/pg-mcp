@@ -147,7 +147,7 @@ async def lifespan(_app: FastMCP) -> AsyncIterator[None]:  # type: ignore[type-a
         logger.info("Initializing service components...")
 
         # SQL Generator
-        sql_generator = SQLGenerator(_settings.openai)
+        sql_generator = SQLGenerator(_settings.gemini)
 
         # SQL Validator
         sql_validator = SQLValidator(
@@ -170,7 +170,7 @@ async def lifespan(_app: FastMCP) -> AsyncIterator[None]:  # type: ignore[type-a
 
         # Result Validator
         result_validator = ResultValidator(
-            openai_config=_settings.openai,
+            gemini_config=_settings.gemini,
             validation_config=_settings.validation,
         )
 

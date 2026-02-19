@@ -46,7 +46,7 @@ Open the configuration file in your text editor and add the PostgreSQL MCP serve
         "DATABASE_NAME": "mydb",
         "DATABASE_USER": "postgres",
         "DATABASE_PASSWORD": "your-password",
-        "OPENAI_API_KEY": "sk-your-api-key-here"
+        "GEMINI_API_KEY": "AIzaSy..."
       }
     }
   }
@@ -67,7 +67,7 @@ Open the configuration file in your text editor and add the PostgreSQL MCP serve
         "DATABASE_NAME": "mydb",
         "DATABASE_USER": "postgres",
         "DATABASE_PASSWORD": "your-password",
-        "OPENAI_API_KEY": "sk-your-api-key-here"
+        "GEMINI_API_KEY": "AIzaSy..."
       }
     }
   }
@@ -88,7 +88,7 @@ Open the configuration file in your text editor and add the PostgreSQL MCP serve
         "DATABASE_NAME": "mydb",
         "DATABASE_USER": "postgres",
         "DATABASE_PASSWORD": "your-password",
-        "OPENAI_API_KEY": "sk-your-api-key-here"
+        "GEMINI_API_KEY": "AIzaSy..."
       }
     }
   }
@@ -105,7 +105,7 @@ These parameters are required for the server to function:
 - `DATABASE_NAME`: Database name to connect to
 - `DATABASE_USER`: Database username
 - `DATABASE_PASSWORD`: Database password
-- `OPENAI_API_KEY`: OpenAI API key for SQL generation
+- `GEMINI_API_KEY`: Gemini API key for SQL generation
 
 #### Optional Parameters
 
@@ -128,10 +128,10 @@ You can add any of these optional parameters to customize behavior:
         "DATABASE_MAX_POOL_SIZE": "20",
         "DATABASE_COMMAND_TIMEOUT": "30",
 
-        "OPENAI_API_KEY": "sk-...",
-        "OPENAI_MODEL": "gpt-5.2-mini",
-        "OPENAI_MAX_TOKENS": "32000",
-        "OPENAI_TEMPERATURE": "0.0",
+        "GEMINI_API_KEY": "AIzaSy...",
+        "GEMINI_MODEL": "gemini-3-flash-preview",
+        "GEMINI_MAX_TOKENS": "32000",
+        "GEMINI_TEMPERATURE": "0.0",
 
         "SECURITY_ALLOW_WRITE_OPERATIONS": "false",
         "SECURITY_MAX_ROWS": "10000",
@@ -190,7 +190,7 @@ If configured correctly, Claude will use the PostgreSQL MCP server to answer the
         "DATABASE_NAME": "myapp",
         "DATABASE_USER": "myuser",
         "DATABASE_PASSWORD": "mypassword",
-        "OPENAI_API_KEY": "sk-proj-..."
+        "GEMINI_API_KEY": "AIzaSy...j-..."
       }
     }
   }
@@ -218,7 +218,7 @@ If configured correctly, Claude will use the PostgreSQL MCP server to answer the
         "DATABASE_NAME": "myapp",
         "DATABASE_USER": "myuser",
         "DATABASE_PASSWORD": "mypassword",
-        "OPENAI_API_KEY": "sk-proj-..."
+        "GEMINI_API_KEY": "AIzaSy...j-..."
       }
     }
   }
@@ -246,7 +246,7 @@ If configured correctly, Claude will use the PostgreSQL MCP server to answer the
         "DATABASE_NAME": "myapp",
         "DATABASE_USER": "myuser",
         "DATABASE_PASSWORD": "mypassword",
-        "OPENAI_API_KEY": "sk-proj-..."
+        "GEMINI_API_KEY": "AIzaSy...j-..."
       }
     }
   }
@@ -276,7 +276,7 @@ You can configure multiple database connections by adding additional MCP server 
         "DATABASE_NAME": "production",
         "DATABASE_USER": "readonly",
         "DATABASE_PASSWORD": "prod-password",
-        "OPENAI_API_KEY": "sk-...",
+        "GEMINI_API_KEY": "AIzaSy...",
         "SECURITY_ALLOW_WRITE_OPERATIONS": "false"
       }
     },
@@ -294,7 +294,7 @@ You can configure multiple database connections by adding additional MCP server 
         "DATABASE_NAME": "development",
         "DATABASE_USER": "dev",
         "DATABASE_PASSWORD": "dev-password",
-        "OPENAI_API_KEY": "sk-...",
+        "GEMINI_API_KEY": "AIzaSy...",
         "SECURITY_ALLOW_WRITE_OPERATIONS": "false"
       }
     }
@@ -342,21 +342,21 @@ You can configure multiple database connections by adding additional MCP server 
    - Is it listening on the correct port?
    - Are there firewall rules blocking connections?
 
-### OpenAI API Errors
+### Gemini API Errors
 
 **Symptoms**: Database connects but SQL generation fails
 
 **Solutions**:
 
-1. **Verify API Key**: Check OPENAI_API_KEY is correct and has credits
+1. **Verify API Key**: Check GEMINI_API_KEY is correct and has credits
 
 2. **Test API Key**:
    ```bash
    curl https://api.openai.com/v1/models \
-     -H "Authorization: Bearer $OPENAI_API_KEY"
+     -H "Authorization: Bearer $GEMINI_API_KEY"
    ```
 
-3. **Check Model**: Ensure OPENAI_MODEL is valid (e.g., gpt-5.2-mini, gpt-4o)
+3. **Check Model**: Ensure GEMINI_MODEL is valid (e.g., gemini-3-flash-preview, gemini-1.5-pro)
 
 ### Permission Issues
 
@@ -415,7 +415,7 @@ DATABASE_HOST=localhost
 DATABASE_NAME=mydb
 DATABASE_USER=postgres
 DATABASE_PASSWORD=password
-OPENAI_API_KEY=sk-...
+GEMINI_API_KEY=AIzaSy...
 ```
 
 ### Custom Port Configuration
@@ -455,7 +455,7 @@ To connect to a remote PostgreSQL server:
         "DATABASE_NAME": "production",
         "DATABASE_USER": "readonly_user",
         "DATABASE_PASSWORD": "secure_password",
-        "OPENAI_API_KEY": "sk-...",
+        "GEMINI_API_KEY": "AIzaSy...",
         "SECURITY_ALLOW_WRITE_OPERATIONS": "false"
       }
     }

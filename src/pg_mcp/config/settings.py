@@ -43,13 +43,13 @@ class DatabaseConfig(BaseSettings):
         return f"postgresql://{self.user}:***@{self.host}:{self.port}/{self.name}"
 
 
-class OpenAIConfig(BaseSettings):
-    """OpenAI API configuration."""
+class GeminiConfig(BaseSettings):
+    """Gemini API configuration."""
 
-    model_config = SettingsConfigDict(env_prefix="OPENAI_")
+    model_config = SettingsConfigDict(env_prefix="GEMINI_")
 
-    api_key: SecretStr = Field(default=SecretStr(""), description="OpenAI API key")
-    model: str = Field(default="gpt-4o-mini", description="Model to use for SQL generation")
+    api_key: SecretStr = Field(default=SecretStr(""), description="Gemini API key")
+    model: str = Field(default="gemini-3-flash-preview", description="Model to use for SQL generation")
     max_tokens: int = Field(default=2000, ge=100, le=4096, description="Maximum tokens in response")
     temperature: float = Field(
         default=0.0, ge=0.0, le=2.0, description="Temperature for response randomness"
@@ -61,12 +61,10 @@ class OpenAIConfig(BaseSettings):
     @field_validator("api_key")
     @classmethod
     def validate_api_key(cls, v: SecretStr) -> SecretStr:
-        """Validate API key is not empty and has correct format."""
+        """Validate API key is not empty."""
         api_key_str = v.get_secret_value()
         if not api_key_str or not api_key_str.strip():
-            raise ValueError("OpenAI API key must not be empty")
-        if not api_key_str.startswith("sk-"):
-            raise ValueError("OpenAI API key must start with 'sk-'")
+            raise ValueError("Gemini API key must not be empty")
         return v
 
 
@@ -196,7 +194,7 @@ class Settings(BaseSettings):
 
     # Nested configurations
     database: DatabaseConfig = Field(default_factory=DatabaseConfig)
-    openai: OpenAIConfig = Field(default_factory=OpenAIConfig)
+    gemini: GeminiConfig = Field(default_factory=GeminiConfig)
     security: SecurityConfig = Field(default_factory=SecurityConfig)
     validation: ValidationConfig = Field(default_factory=ValidationConfig)
     cache: CacheConfig = Field(default_factory=CacheConfig)
