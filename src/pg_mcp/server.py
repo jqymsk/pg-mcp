@@ -94,19 +94,20 @@ async def lifespan(_app: FastMCP) -> AsyncIterator[None]:  # type: ignore[type-a
             },
         )
 
-        # 3. Create database connection pools
+        # 3. Create database connection pools for all databases
         logger.info("Creating database connection pools...")
         _pools = {}
-        # Note: For single database configuration, we use the main database config
-        pool = await create_pool(_settings.database)
-        _pools[_settings.database.name] = pool
-        logger.info(
-            f"Created connection pool for database '{_settings.database.name}'",
-            extra={
-                "min_size": _settings.database.min_pool_size,
-                "max_size": _settings.database.max_pool_size,
-            },
-        )
+        all_db_configs = _settings.get_all_databases()
+        for db_config in all_db_configs:
+            pool = await create_pool(db_config)
+            _pools[db_config.name] = pool
+            logger.info(
+                f"Created connection pool for database '{db_config.name}'",
+                extra={
+                    "min_size": db_config.min_pool_size,
+                    "max_size": db_config.max_pool_size,
+                },
+            )
 
         # 4. Load Schema cache
         logger.info("Initializing schema cache...")
@@ -147,15 +148,18 @@ async def lifespan(_app: FastMCP) -> AsyncIterator[None]:  # type: ignore[type-a
         logger.info("Initializing service components...")
 
         # SQL Generator
-        sql_generator = SQLGenerator(_settings.openai)
+        sql_generator = SQLGenerator(_settings.gemini)
 
-        # SQL Validator
-        sql_validator = SQLValidator(
-            config=_settings.security,
-            blocked_tables=None,  # Can be configured via settings if needed
-            blocked_columns=None,  # Can be configured via settings if needed
-            allow_explain=False,
-        )
+        # SQL Validators (per-database)
+        sql_validators: dict[str, SQLValidator] = {}
+        for db_config in all_db_configs:
+            sql_validators[db_config.name] = SQLValidator(
+                config=_settings.security,
+                blocked_tables=db_config.security.blocked_tables or None,
+                blocked_columns=db_config.security.blocked_columns or None,
+                allow_explain=db_config.security.allow_explain,
+            )
+            logger.info(f"Created SQL validator for database '{db_config.name}'")
 
         # SQL Executor (create one per database)
         sql_executors: dict[str, SQLExecutor] = {}
@@ -170,7 +174,7 @@ async def lifespan(_app: FastMCP) -> AsyncIterator[None]:  # type: ignore[type-a
 
         # Result Validator
         result_validator = ResultValidator(
-            openai_config=_settings.openai,
+            gemini_config=_settings.gemini,
             validation_config=_settings.validation,
         )
 
@@ -185,21 +189,23 @@ async def lifespan(_app: FastMCP) -> AsyncIterator[None]:  # type: ignore[type-a
 
         # Rate Limiter
         _rate_limiter = MultiRateLimiter(
-            query_limit=10,  # Can be made configurable
-            llm_limit=5,  # Can be made configurable
+            query_limit=_settings.resilience.max_concurrent_queries,
+            llm_limit=_settings.resilience.max_concurrent_llm_calls,
         )
 
         # 8. Create QueryOrchestrator
         logger.info("Creating query orchestrator...")
         _orchestrator = QueryOrchestrator(
             sql_generator=sql_generator,
-            sql_validator=sql_validator,
-            sql_executor=sql_executors[_settings.database.name],  # Use primary executor
+            sql_validators=sql_validators,
+            sql_executors=sql_executors,
             result_validator=result_validator,
             schema_cache=_schema_cache,
             pools=_pools,
             resilience_config=_settings.resilience,
             validation_config=_settings.validation,
+            metrics=_metrics,
+            rate_limiter=_rate_limiter,
         )
 
         logger.info("PostgreSQL MCP Server initialization complete!")

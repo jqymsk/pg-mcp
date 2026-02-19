@@ -5,7 +5,8 @@ of the query processing pipeline: SQL generation, validation, execution, and res
 validation. It implements retry logic, error handling, and request tracking.
 """
 
-import logging
+import asyncio
+import time
 import uuid
 from typing import Any
 
@@ -30,13 +31,16 @@ from pg_mcp.models.query import (
     ReturnType,
     ValidationResult,
 )
+from pg_mcp.observability.metrics import MetricsCollector
+from pg_mcp.observability.tracing import get_tracing_logger, request_context
 from pg_mcp.resilience.circuit_breaker import CircuitBreaker
+from pg_mcp.resilience.rate_limiter import MultiRateLimiter
 from pg_mcp.services.result_validator import ResultValidator
 from pg_mcp.services.sql_executor import SQLExecutor
 from pg_mcp.services.sql_generator import SQLGenerator
 from pg_mcp.services.sql_validator import SQLValidator
 
-logger = logging.getLogger(__name__)
+logger = get_tracing_logger(__name__)
 
 
 class QueryOrchestrator:
@@ -49,8 +53,8 @@ class QueryOrchestrator:
     Example:
         >>> orchestrator = QueryOrchestrator(
         ...     sql_generator=generator,
-        ...     sql_validator=validator,
-        ...     sql_executor=executor,
+        ...     sql_validators=validators,
+        ...     sql_executors=executors,
         ...     result_validator=result_validator,
         ...     schema_cache=cache,
         ...     pools={"mydb": pool},
@@ -66,34 +70,40 @@ class QueryOrchestrator:
     def __init__(
         self,
         sql_generator: SQLGenerator,
-        sql_validator: SQLValidator,
-        sql_executor: SQLExecutor,
+        sql_validators: dict[str, SQLValidator],
+        sql_executors: dict[str, SQLExecutor],
         result_validator: ResultValidator,
         schema_cache: SchemaCache,
         pools: dict[str, Pool],
         resilience_config: ResilienceConfig,
         validation_config: ValidationConfig,
+        metrics: MetricsCollector | None = None,
+        rate_limiter: MultiRateLimiter | None = None,
     ) -> None:
         """Initialize query orchestrator.
 
         Args:
             sql_generator: SQL generation service.
-            sql_validator: SQL validation service.
-            sql_executor: SQL execution service.
+            sql_validators: Per-database SQL validation services.
+            sql_executors: Per-database SQL execution services.
             result_validator: Result validation service.
             schema_cache: Schema cache instance.
             pools: Dictionary mapping database names to connection pools.
             resilience_config: Resilience configuration for retries and circuit breaker.
             validation_config: Validation configuration including thresholds.
+            metrics: Optional metrics collector for observability.
+            rate_limiter: Optional rate limiter for concurrent request control.
         """
         self.sql_generator = sql_generator
-        self.sql_validator = sql_validator
-        self.sql_executor = sql_executor
+        self.sql_validators = sql_validators
+        self.sql_executors = sql_executors
         self.result_validator = result_validator
         self.schema_cache = schema_cache
         self.pools = pools
         self.resilience_config = resilience_config
         self.validation_config = validation_config
+        self.metrics = metrics
+        self.rate_limiter = rate_limiter
 
         # Create circuit breaker for LLM calls
         self.circuit_breaker = CircuitBreaker(
@@ -128,6 +138,29 @@ class QueryOrchestrator:
         """
         # Generate request_id for full-chain tracing
         request_id = str(uuid.uuid4())
+
+        async with request_context(request_id):
+            if self.rate_limiter:
+                async with self.rate_limiter.for_queries(timeout=30.0):
+                    return await self._execute_query_inner(request, request_id)
+            else:
+                return await self._execute_query_inner(request, request_id)
+
+    async def _execute_query_inner(
+        self, request: QueryRequest, request_id: str
+    ) -> QueryResponse:
+        """Inner query execution logic wrapped by request context.
+
+        Args:
+            request: Query request containing question and parameters.
+            request_id: Unique request ID for tracing.
+
+        Returns:
+            QueryResponse: Complete response with SQL, results, or error information.
+        """
+        query_start = time.time()
+        database_name: str | None = None
+
         logger.info(
             "Starting query execution",
             extra={"request_id": request_id, "question": request.question[:100]},
@@ -169,10 +202,12 @@ class QueryOrchestrator:
             )
 
             # Step 3: Generate and validate SQL with retry logic
+            sql_validator = self.sql_validators.get(database_name)
             generated_sql, validation_result, tokens_used = await self._generate_sql_with_retry(
                 question=request.question,
                 schema=schema,
                 request_id=request_id,
+                sql_validator=sql_validator,
             )
 
             # Step 4: If return_type is SQL, return early
@@ -181,7 +216,7 @@ class QueryOrchestrator:
                     "Returning SQL only",
                     extra={"request_id": request_id, "sql_length": len(generated_sql)},
                 )
-                return QueryResponse(
+                response = QueryResponse(
                     success=True,
                     generated_sql=generated_sql,
                     validation=validation_result,
@@ -190,14 +225,24 @@ class QueryOrchestrator:
                     confidence=100,
                     tokens_used=tokens_used,
                 )
+                if self.metrics:
+                    self.metrics.increment_query_request(
+                        status="success", database=database_name
+                    )
+                    self.metrics.query_duration.observe(time.time() - query_start)
+                return response
 
             # Step 5: Execute SQL
             logger.debug("Executing SQL", extra={"request_id": request_id})
-            start_time = self._get_current_time_ms()
+            db_start = time.time()
 
-            results, total_count = await self.sql_executor.execute(generated_sql)
+            executor = self.sql_executors[database_name]
+            results, total_count = await executor.execute(generated_sql)
 
-            execution_time_ms = self._get_current_time_ms() - start_time
+            if self.metrics:
+                self.metrics.observe_db_query_duration(duration=time.time() - db_start)
+
+            execution_time_ms = (time.time() - db_start) * 1000
             logger.info(
                 "SQL executed successfully",
                 extra={
@@ -224,7 +269,7 @@ class QueryOrchestrator:
                 execution_time_ms=execution_time_ms,
             )
 
-            return QueryResponse(
+            response = QueryResponse(
                 success=True,
                 generated_sql=generated_sql,
                 validation=validation_result,
@@ -233,6 +278,14 @@ class QueryOrchestrator:
                 confidence=result_confidence,
                 tokens_used=tokens_used,
             )
+
+            if self.metrics:
+                self.metrics.increment_query_request(
+                    status="success", database=database_name
+                )
+                self.metrics.query_duration.observe(time.time() - query_start)
+
+            return response
 
         except PgMcpError as e:
             # Handle known application errors
@@ -244,6 +297,11 @@ class QueryOrchestrator:
                     "error_message": str(e),
                 },
             )
+            if self.metrics:
+                self.metrics.increment_query_request(
+                    status="error", database=database_name or "unknown"
+                )
+                self.metrics.query_duration.observe(time.time() - query_start)
             return QueryResponse(
                 success=False,
                 generated_sql=None,
@@ -263,6 +321,11 @@ class QueryOrchestrator:
                 "Query execution failed with unexpected error",
                 extra={"request_id": request_id},
             )
+            if self.metrics:
+                self.metrics.increment_query_request(
+                    status="error", database=database_name or "unknown"
+                )
+                self.metrics.query_duration.observe(time.time() - query_start)
             return QueryResponse(
                 success=False,
                 generated_sql=None,
@@ -329,6 +392,7 @@ class QueryOrchestrator:
         question: str,
         schema: Any,
         request_id: str,
+        sql_validator: SQLValidator | None = None,
     ) -> tuple[str, ValidationResult, int | None]:
         """Generate and validate SQL with retry logic on validation failures.
 
@@ -343,6 +407,7 @@ class QueryOrchestrator:
             question: User's natural language question.
             schema: Database schema for context.
             request_id: Request ID for tracking.
+            sql_validator: Optional per-database SQL validator. Falls back to first available.
 
         Returns:
             tuple: (generated_sql, validation_result, tokens_used)
@@ -359,6 +424,7 @@ class QueryOrchestrator:
             ...     request_id="123",
             ... )
         """
+        validator = sql_validator or next(iter(self.sql_validators.values()))
         # Check circuit breaker
         if not self.circuit_breaker.allow_request():
             raise LLMError(
@@ -385,13 +451,28 @@ class QueryOrchestrator:
                     },
                 )
 
-                # Generate SQL
-                generated_sql = await self.sql_generator.generate(
-                    question=question,
-                    schema=schema,
-                    previous_attempt=previous_sql,
-                    error_feedback=error_feedback,
-                )
+                # Generate SQL (with rate limiting if available)
+                llm_start = time.time()
+                if self.rate_limiter:
+                    async with self.rate_limiter.for_llm(timeout=60.0):
+                        generated_sql = await self.sql_generator.generate(
+                            question=question,
+                            schema=schema,
+                            previous_attempt=previous_sql,
+                            error_feedback=error_feedback,
+                        )
+                else:
+                    generated_sql = await self.sql_generator.generate(
+                        question=question,
+                        schema=schema,
+                        previous_attempt=previous_sql,
+                        error_feedback=error_feedback,
+                    )
+                if self.metrics:
+                    self.metrics.increment_llm_call(operation="generate_sql")
+                    self.metrics.observe_llm_latency(
+                        operation="generate_sql", duration=time.time() - llm_start
+                    )
 
                 # Note: tokens_used would come from OpenAI response metadata if available
                 # For now, we don't extract it, but it can be added later
@@ -406,9 +487,17 @@ class QueryOrchestrator:
 
                 # Validate SQL
                 try:
-                    self.sql_validator.validate_or_raise(generated_sql)
+                    validator.validate_or_raise(generated_sql)
                 except (SecurityViolationError, SQLParseError) as validation_error:
+                    if self.metrics:
+                        self.metrics.increment_sql_rejected(reason="validation_failed")
                     if attempt < max_retries:
+                        # Add exponential backoff delay before retry
+                        delay = self.resilience_config.retry_delay * (
+                            self.resilience_config.backoff_factor ** attempt
+                        )
+                        await asyncio.sleep(delay)
+
                         # Record as failure and retry with feedback
                         logger.warning(
                             "SQL validation failed, retrying with feedback",
@@ -554,6 +643,4 @@ class QueryOrchestrator:
         Returns:
             float: Current time in milliseconds since epoch.
         """
-        import time
-
         return time.time() * 1000

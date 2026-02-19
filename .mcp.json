@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "pg-mcp": {
+      "command": "uv",
+      "args": ["run", "pg-mcp"],
+      "env": {
+        "DATABASE_HOST": "localhost",
+        "DATABASE_PORT": "5432",
+        "DATABASE_NAME": "blog_small",
+        "DATABASE_USER": "postgres",
+        "DATABASE_PASSWORD": "password",
+        "GEMINI_API_KEY": "AIzaSyBH1dHBuqMSx0jTGu8OkAFa83jaGC3VSPU"
+      }
+    }
+  }
+}

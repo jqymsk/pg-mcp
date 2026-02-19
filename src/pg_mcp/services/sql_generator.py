@@ -1,33 +1,32 @@
-"""SQL generation service using OpenAI for natural language to SQL conversion.
+"""SQL generation service using Google Gemini for natural language to SQL conversion.
 
-This module provides the SQLGenerator class that uses OpenAI's LLM to convert
+This module provides the SQLGenerator class that uses Google's Gemini LLM to convert
 natural language questions into valid PostgreSQL SQL queries.
 """
 
 import re
 from typing import TYPE_CHECKING
 
-from openai import AsyncOpenAI
+from google import genai
+from google.genai import types
 
-from pg_mcp.config.settings import OpenAIConfig
+from pg_mcp.config.settings import GeminiConfig
 from pg_mcp.models.errors import LLMError, LLMTimeoutError, LLMUnavailableError
 from pg_mcp.prompts.sql_generation import SQL_GENERATION_SYSTEM_PROMPT, build_user_prompt
 
 if TYPE_CHECKING:
-    from openai.types.chat import ChatCompletion
-
     from pg_mcp.models.schema import DatabaseSchema
 
 
 class SQLGenerator:
-    """SQL generator using OpenAI for natural language to SQL conversion.
+    """SQL generator using Google Gemini for natural language to SQL conversion.
 
-    This class handles the interaction with OpenAI's API to generate SQL queries
+    This class handles the interaction with Google's Gemini API to generate SQL queries
     from natural language questions. It includes robust error handling, SQL extraction
     from various response formats, and support for retry scenarios with error feedback.
 
     Example:
-        >>> config = OpenAIConfig(api_key="sk-...", model="gpt-4")
+        >>> config = GeminiConfig(api_key="AIza...", model="gemini-3-flash-preview")
         >>> generator = SQLGenerator(config)
         >>> sql = await generator.generate(
         ...     question="How many users registered today?",
@@ -35,14 +34,14 @@ class SQLGenerator:
         ... )
     """
 
-    def __init__(self, config: OpenAIConfig) -> None:
-        """Initialize SQL generator with OpenAI configuration.
+    def __init__(self, config: GeminiConfig) -> None:
+        """Initialize SQL generator with Gemini configuration.
 
         Args:
-            config: OpenAI configuration including API key and model settings.
+            config: Gemini configuration including API key and model settings.
         """
         self.config = config
-        self.client = AsyncOpenAI(api_key=config.api_key.get_secret_value(), timeout=config.timeout)
+        self.client = genai.Client(api_key=config.api_key.get_secret_value())
 
     async def generate(
         self,
@@ -54,7 +53,7 @@ class SQLGenerator:
     ) -> str:
         """Generate SQL statement from natural language question.
 
-        This method sends the question and database schema to OpenAI's API
+        This method sends the question and database schema to Gemini's API
         and extracts the generated SQL query from the response. It supports
         retry scenarios by accepting previous failed attempts and error feedback.
 
@@ -95,57 +94,53 @@ class SQLGenerator:
             error_feedback=error_feedback,
         )
 
+        # Combine system prompt and user prompt
+        full_prompt = f"{SQL_GENERATION_SYSTEM_PROMPT}\n\n{user_prompt}"
+
         try:
-            response: ChatCompletion = await self.client.chat.completions.create(
+            response = await self.client.aio.models.generate_content(
                 model=self.config.model,
-                messages=[
-                    {"role": "system", "content": SQL_GENERATION_SYSTEM_PROMPT},
-                    {"role": "user", "content": user_prompt},
-                ],
-                temperature=self.config.temperature,
-                max_tokens=self.config.max_tokens,
+                contents=full_prompt,
+                config=types.GenerateContentConfig(
+                    temperature=self.config.temperature,
+                    max_output_tokens=self.config.max_tokens,
+                ),
             )
         except TimeoutError as e:
             raise LLMTimeoutError(
-                message=f"OpenAI API request timed out after {self.config.timeout}s",
+                message=f"Gemini API request timed out after {self.config.timeout}s",
                 details={"timeout": self.config.timeout},
             ) from e
         except Exception as e:
-            # Handle various OpenAI errors
+            # Handle various Gemini errors
             error_msg = str(e)
-            if "authentication" in error_msg.lower() or "api_key" in error_msg.lower():
+            if "api_key" in error_msg.lower() or "authentication" in error_msg.lower():
                 raise LLMUnavailableError(
-                    message="OpenAI API authentication failed - check API key",
+                    message="Gemini API authentication failed - check API key",
                     details={"error": error_msg},
                 ) from e
-            if "rate_limit" in error_msg.lower():
+            if "quota" in error_msg.lower() or "rate" in error_msg.lower():
                 raise LLMUnavailableError(
-                    message="OpenAI API rate limit exceeded",
+                    message="Gemini API quota/rate limit exceeded",
                     details={"error": error_msg},
                 ) from e
             raise LLMError(
-                message=f"OpenAI API request failed: {error_msg}",
+                message=f"Gemini API request failed: {error_msg}",
                 details={"error": error_msg},
             ) from e
 
         # Extract SQL from response
-        if not response.choices:
+        if not response.text:
             raise LLMError(
-                message="OpenAI returned empty response",
-                details={"response": response.model_dump()},
+                message="Gemini returned empty response",
+                details={"response": str(response)},
             )
 
-        content = response.choices[0].message.content
-        if not content:
-            raise LLMError(
-                message="OpenAI returned empty message content",
-                details={"response": response.model_dump()},
-            )
-
+        content = response.text
         sql = self._extract_sql(content)
         if not sql:
             raise LLMError(
-                message="Failed to extract SQL from OpenAI response",
+                message="Failed to extract SQL from Gemini response",
                 details={"content": content},
             )
 

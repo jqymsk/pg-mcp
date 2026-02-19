@@ -11,10 +11,24 @@ from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+class DatabaseSecurityConfig(BaseSettings):
+    """Per-database security configuration."""
+    model_config = SettingsConfigDict(extra="ignore")
+
+    blocked_tables: list[str] = Field(default_factory=list, description="Tables to block access to")
+    blocked_columns: list[str] = Field(default_factory=list, description="Columns to block access to")
+    allow_explain: bool = Field(default=False, description="Whether to allow EXPLAIN statements")
+
+
 class DatabaseConfig(BaseSettings):
     """PostgreSQL database connection configuration."""
 
-    model_config = SettingsConfigDict(env_prefix="DATABASE_")
+    model_config = SettingsConfigDict(
+        env_prefix="DATABASE_",
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
 
     host: str = Field(default="localhost", description="Database host")
     port: int = Field(default=5432, ge=1, le=65535, description="Database port")
@@ -32,6 +46,8 @@ class DatabaseConfig(BaseSettings):
         default=30.0, ge=1.0, le=300.0, description="Command execution timeout in seconds"
     )
 
+    security: DatabaseSecurityConfig = Field(default_factory=DatabaseSecurityConfig)
+
     @property
     def dsn(self) -> str:
         """Build PostgreSQL DSN connection string."""
@@ -43,14 +59,19 @@ class DatabaseConfig(BaseSettings):
         return f"postgresql://{self.user}:***@{self.host}:{self.port}/{self.name}"
 
 
-class OpenAIConfig(BaseSettings):
-    """OpenAI API configuration."""
+class GeminiConfig(BaseSettings):
+    """Google Gemini API configuration."""
 
-    model_config = SettingsConfigDict(env_prefix="OPENAI_")
+    model_config = SettingsConfigDict(
+        env_prefix="GEMINI_",
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
 
-    api_key: SecretStr = Field(default=SecretStr(""), description="OpenAI API key")
-    model: str = Field(default="gpt-4o-mini", description="Model to use for SQL generation")
-    max_tokens: int = Field(default=2000, ge=100, le=4096, description="Maximum tokens in response")
+    api_key: SecretStr = Field(default=SecretStr(""), description="Gemini API key")
+    model: str = Field(default="gemini-3-flash-preview", description="Model to use for SQL generation")
+    max_tokens: int = Field(default=2000, ge=100, le=8192, description="Maximum tokens in response")
     temperature: float = Field(
         default=0.0, ge=0.0, le=2.0, description="Temperature for response randomness"
     )
@@ -61,12 +82,10 @@ class OpenAIConfig(BaseSettings):
     @field_validator("api_key")
     @classmethod
     def validate_api_key(cls, v: SecretStr) -> SecretStr:
-        """Validate API key is not empty and has correct format."""
+        """Validate API key is not empty."""
         api_key_str = v.get_secret_value()
         if not api_key_str or not api_key_str.strip():
-            raise ValueError("OpenAI API key must not be empty")
-        if not api_key_str.startswith("sk-"):
-            raise ValueError("OpenAI API key must start with 'sk-'")
+            raise ValueError("Gemini API key must not be empty")
         return v
 
 
@@ -163,6 +182,8 @@ class ResilienceConfig(BaseSettings):
     circuit_breaker_timeout: float = Field(
         default=60.0, ge=10.0, le=300.0, description="Circuit breaker timeout in seconds"
     )
+    max_concurrent_queries: int = Field(default=10, ge=1, le=100, description="Maximum concurrent database queries")
+    max_concurrent_llm_calls: int = Field(default=5, ge=1, le=50, description="Maximum concurrent LLM API calls")
 
 
 class ObservabilityConfig(BaseSettings):
@@ -196,7 +217,8 @@ class Settings(BaseSettings):
 
     # Nested configurations
     database: DatabaseConfig = Field(default_factory=DatabaseConfig)
-    openai: OpenAIConfig = Field(default_factory=OpenAIConfig)
+    databases: list[DatabaseConfig] = Field(default_factory=list)
+    gemini: GeminiConfig = Field(default_factory=GeminiConfig)
     security: SecurityConfig = Field(default_factory=SecurityConfig)
     validation: ValidationConfig = Field(default_factory=ValidationConfig)
     cache: CacheConfig = Field(default_factory=CacheConfig)
@@ -212,6 +234,21 @@ class Settings(BaseSettings):
     def is_development(self) -> bool:
         """Check if running in development environment."""
         return self.environment == "development"
+
+    def get_all_databases(self) -> list["DatabaseConfig"]:
+        """Get all database configurations, merging single and multi-db configs.
+
+        Returns the databases list if non-empty, otherwise wraps the single
+        database config in a list. Deduplicates by database name.
+        """
+        if not self.databases:
+            return [self.database]
+        # Merge: include the primary database config if its name isn't already in databases
+        seen_names = {db.name for db in self.databases}
+        result = list(self.databases)
+        if self.database.name not in seen_names:
+            result.insert(0, self.database)
+        return result
 
 
 # Global settings instance

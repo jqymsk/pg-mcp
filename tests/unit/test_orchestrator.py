@@ -41,8 +41,8 @@ class TestDatabaseResolution:
         """Create orchestrator with mocked components."""
         return QueryOrchestrator(
             sql_generator=MagicMock(),
-            sql_validator=MagicMock(),
-            sql_executor=MagicMock(),
+            sql_validators={"db1": MagicMock(), "db2": MagicMock()},
+            sql_executors={"db1": MagicMock(), "db2": MagicMock()},
             result_validator=MagicMock(),
             schema_cache=MagicMock(),
             pools=mock_pools,
@@ -68,8 +68,8 @@ class TestDatabaseResolution:
         """Test auto-selecting when only one database available."""
         orchestrator = QueryOrchestrator(
             sql_generator=MagicMock(),
-            sql_validator=MagicMock(),
-            sql_executor=MagicMock(),
+            sql_validators={"only_db": MagicMock()},
+            sql_executors={"only_db": MagicMock()},
             result_validator=MagicMock(),
             schema_cache=MagicMock(),
             pools={"only_db": MagicMock()},
@@ -94,8 +94,8 @@ class TestDatabaseResolution:
         """Test error when no databases configured."""
         orchestrator = QueryOrchestrator(
             sql_generator=MagicMock(),
-            sql_validator=MagicMock(),
-            sql_executor=MagicMock(),
+            sql_validators={},
+            sql_executors={},
             result_validator=MagicMock(),
             schema_cache=MagicMock(),
             pools={},
@@ -151,8 +151,8 @@ class TestSQLGenerationWithRetry:
 
         orchestrator = QueryOrchestrator(
             sql_generator=mock_generator,
-            sql_validator=mock_validator,
-            sql_executor=MagicMock(),
+            sql_validators={"test_db": mock_validator},
+            sql_executors={"test_db": MagicMock()},
             result_validator=MagicMock(),
             schema_cache=MagicMock(),
             pools={"test_db": MagicMock()},
@@ -195,8 +195,8 @@ class TestSQLGenerationWithRetry:
 
         orchestrator = QueryOrchestrator(
             sql_generator=mock_generator,
-            sql_validator=mock_validator,
-            sql_executor=MagicMock(),
+            sql_validators={"test_db": mock_validator},
+            sql_executors={"test_db": MagicMock()},
             result_validator=MagicMock(),
             schema_cache=MagicMock(),
             pools={"test_db": MagicMock()},
@@ -236,8 +236,8 @@ class TestSQLGenerationWithRetry:
 
         orchestrator = QueryOrchestrator(
             sql_generator=mock_generator,
-            sql_validator=mock_validator,
-            sql_executor=MagicMock(),
+            sql_validators={"test_db": mock_validator},
+            sql_executors={"test_db": MagicMock()},
             result_validator=MagicMock(),
             schema_cache=MagicMock(),
             pools={"test_db": MagicMock()},
@@ -263,8 +263,8 @@ class TestSQLGenerationWithRetry:
         """Test that open circuit breaker prevents SQL generation."""
         orchestrator = QueryOrchestrator(
             sql_generator=AsyncMock(),
-            sql_validator=MagicMock(),
-            sql_executor=MagicMock(),
+            sql_validators={"test_db": MagicMock()},
+            sql_executors={"test_db": MagicMock()},
             result_validator=MagicMock(),
             schema_cache=MagicMock(),
             pools={"test_db": MagicMock()},
@@ -295,8 +295,8 @@ class TestSQLGenerationWithRetry:
 
         orchestrator = QueryOrchestrator(
             sql_generator=mock_generator,
-            sql_validator=MagicMock(),
-            sql_executor=MagicMock(),
+            sql_validators={"test_db": MagicMock()},
+            sql_executors={"test_db": MagicMock()},
             result_validator=MagicMock(),
             schema_cache=MagicMock(),
             pools={"test_db": MagicMock()},
@@ -331,8 +331,8 @@ class TestResultValidation:
 
         orchestrator = QueryOrchestrator(
             sql_generator=MagicMock(),
-            sql_validator=MagicMock(),
-            sql_executor=MagicMock(),
+            sql_validators={"test_db": MagicMock()},
+            sql_executors={"test_db": MagicMock()},
             result_validator=mock_validator,
             schema_cache=MagicMock(),
             pools={"test_db": MagicMock()},
@@ -358,8 +358,8 @@ class TestResultValidation:
 
         orchestrator = QueryOrchestrator(
             sql_generator=MagicMock(),
-            sql_validator=MagicMock(),
-            sql_executor=MagicMock(),
+            sql_validators={"test_db": MagicMock()},
+            sql_executors={"test_db": MagicMock()},
             result_validator=mock_validator,
             schema_cache=MagicMock(),
             pools={"test_db": MagicMock()},
@@ -386,8 +386,8 @@ class TestResultValidation:
 
         orchestrator = QueryOrchestrator(
             sql_generator=MagicMock(),
-            sql_validator=MagicMock(),
-            sql_executor=MagicMock(),
+            sql_validators={"test_db": MagicMock()},
+            sql_executors={"test_db": MagicMock()},
             result_validator=mock_validator,
             schema_cache=MagicMock(),
             pools={"test_db": MagicMock()},
@@ -452,8 +452,8 @@ class TestExecuteQueryFlow:
 
         orchestrator = QueryOrchestrator(
             sql_generator=mock_generator,
-            sql_validator=mock_validator,
-            sql_executor=MagicMock(),
+            sql_validators={"test_db": mock_validator},
+            sql_executors={"test_db": MagicMock()},
             result_validator=MagicMock(),
             schema_cache=mock_cache,
             pools={"test_db": MagicMock()},
@@ -509,8 +509,8 @@ class TestExecuteQueryFlow:
 
         orchestrator = QueryOrchestrator(
             sql_generator=mock_generator,
-            sql_validator=mock_validator,
-            sql_executor=mock_executor,
+            sql_validators={"test_db": mock_validator},
+            sql_executors={"test_db": mock_executor},
             result_validator=mock_result_validator,
             schema_cache=mock_cache,
             pools={"test_db": MagicMock()},
@@ -560,8 +560,8 @@ class TestExecuteQueryFlow:
 
         orchestrator = QueryOrchestrator(
             sql_generator=mock_generator,
-            sql_validator=mock_validator,
-            sql_executor=MagicMock(),
+            sql_validators={"test_db": mock_validator},
+            sql_executors={"test_db": MagicMock()},
             result_validator=MagicMock(),
             schema_cache=mock_cache,
             pools={"test_db": mock_pool},
@@ -591,8 +591,8 @@ class TestExecuteQueryFlow:
 
         orchestrator = QueryOrchestrator(
             sql_generator=MagicMock(),
-            sql_validator=MagicMock(),
-            sql_executor=MagicMock(),
+            sql_validators={"test_db": MagicMock()},
+            sql_executors={"test_db": MagicMock()},
             result_validator=MagicMock(),
             schema_cache=mock_cache,
             pools={"test_db": MagicMock()},
@@ -635,8 +635,8 @@ class TestExecuteQueryFlow:
 
         orchestrator = QueryOrchestrator(
             sql_generator=mock_generator,
-            sql_validator=mock_validator,
-            sql_executor=MagicMock(),
+            sql_validators={"test_db": mock_validator},
+            sql_executors={"test_db": MagicMock()},
             result_validator=MagicMock(),
             schema_cache=mock_cache,
             pools={"test_db": MagicMock()},
@@ -676,8 +676,8 @@ class TestExecuteQueryFlow:
 
         orchestrator = QueryOrchestrator(
             sql_generator=mock_generator,
-            sql_validator=mock_validator,
-            sql_executor=mock_executor,
+            sql_validators={"test_db": mock_validator},
+            sql_executors={"test_db": mock_executor},
             result_validator=MagicMock(),
             schema_cache=mock_cache,
             pools={"test_db": MagicMock()},
@@ -708,8 +708,8 @@ class TestExecuteQueryFlow:
 
         orchestrator = QueryOrchestrator(
             sql_generator=MagicMock(),
-            sql_validator=MagicMock(),
-            sql_executor=MagicMock(),
+            sql_validators={"test_db": MagicMock()},
+            sql_executors={"test_db": MagicMock()},
             result_validator=MagicMock(),
             schema_cache=mock_cache,
             pools={"test_db": MagicMock()},
@@ -746,8 +746,8 @@ class TestExecuteQueryFlow:
 
         orchestrator = QueryOrchestrator(
             sql_generator=mock_generator,
-            sql_validator=mock_validator,
-            sql_executor=MagicMock(),
+            sql_validators={"only_db": mock_validator},
+            sql_executors={"only_db": MagicMock()},
             result_validator=MagicMock(),
             schema_cache=mock_cache,
             pools={"only_db": MagicMock()},  # Only one database
