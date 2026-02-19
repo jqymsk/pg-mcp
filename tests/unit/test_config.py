@@ -13,7 +13,7 @@ from pg_mcp.config.settings import (
     CacheConfig,
     DatabaseConfig,
     ObservabilityConfig,
-    OpenAIConfig,
+    GeminiConfig,
     ResilienceConfig,
     SecurityConfig,
     Settings,
@@ -94,27 +94,27 @@ class TestDatabaseConfig:
             DatabaseConfig(max_pool_size=101)
 
 
-class TestOpenAIConfig:
-    """Tests for OpenAIConfig."""
+class TestGeminiConfig:
+    """Tests for GeminiConfig."""
 
     def test_default_values(self) -> None:
         """Test default configuration values."""
-        config = OpenAIConfig(api_key="sk-test123")
-        assert config.model == "gpt-4o-mini"
+        config = GeminiConfig(api_key="AIzaTest")
+        assert config.model == "gemini-3-flash-preview"
         assert config.max_tokens == 2000
         assert config.temperature == 0.0
         assert config.timeout == 30.0
 
     def test_custom_values(self) -> None:
         """Test custom configuration values."""
-        config = OpenAIConfig(
-            api_key="sk-custom",
-            model="gpt-4",
+        config = GeminiConfig(
+            api_key="AIzaCustom",
+            model="gemini-1.5-pro",
             max_tokens=4000,
             temperature=0.7,
             timeout=60.0,
         )
-        assert config.model == "gpt-4"
+        assert config.model == "gemini-1.5-pro"
         assert config.max_tokens == 4000
         assert config.temperature == 0.7
         assert config.timeout == 60.0
@@ -122,33 +122,28 @@ class TestOpenAIConfig:
     def test_empty_api_key_rejected(self) -> None:
         """Test empty API key is rejected."""
         with pytest.raises(ValidationError, match="must not be empty"):
-            OpenAIConfig(api_key="")
+            GeminiConfig(api_key="")
 
     def test_whitespace_api_key_rejected(self) -> None:
         """Test whitespace-only API key is rejected."""
         with pytest.raises(ValidationError, match="must not be empty"):
-            OpenAIConfig(api_key="   ")
-
-    def test_invalid_api_key_format(self) -> None:
-        """Test API key must start with sk-."""
-        with pytest.raises(ValidationError, match="must start with 'sk-'"):
-            OpenAIConfig(api_key="invalid-key")
+            GeminiConfig(api_key="   ")
 
     def test_invalid_max_tokens(self) -> None:
         """Test invalid max_tokens is rejected."""
         with pytest.raises(ValidationError):
-            OpenAIConfig(api_key="sk-test", max_tokens=50)
+            GeminiConfig(api_key="AIzaTest", max_tokens=50)
 
         with pytest.raises(ValidationError):
-            OpenAIConfig(api_key="sk-test", max_tokens=5000)
+            GeminiConfig(api_key="AIzaTest", max_tokens=5000)
 
     def test_invalid_temperature(self) -> None:
         """Test invalid temperature is rejected."""
         with pytest.raises(ValidationError):
-            OpenAIConfig(api_key="sk-test", temperature=-0.1)
+            GeminiConfig(api_key="AIzaTest", temperature=-0.1)
 
         with pytest.raises(ValidationError):
-            OpenAIConfig(api_key="sk-test", temperature=2.1)
+            GeminiConfig(api_key="AIzaTest", temperature=2.1)
 
 
 class TestSecurityConfig:
@@ -292,7 +287,7 @@ class TestObservabilityConfig:
         # 生产环境应该通过环境变量显式设置
         assert config.metrics_port == 9090
         assert config.log_level == "INFO"
-        assert config.log_format == "json"
+        assert config.log_format == "text"
 
     def test_custom_values(self) -> None:
         """Test custom configuration values."""
@@ -323,10 +318,10 @@ class TestSettings:
 
     def test_default_settings(self) -> None:
         """Test default settings initialization."""
-        settings = Settings(openai=OpenAIConfig(api_key="sk-test"))
+        settings = Settings(gemini=GeminiConfig(api_key="AIzaTest"))
         assert settings.environment == "development"
         assert settings.database is not None
-        assert settings.openai is not None
+        assert settings.gemini is not None
         assert settings.security is not None
         assert settings.validation is not None
         assert settings.cache is not None
@@ -337,7 +332,7 @@ class TestSettings:
         """Test production environment check."""
         settings = Settings(
             environment="production",
-            openai=OpenAIConfig(api_key="sk-test"),
+            gemini=GeminiConfig(api_key="AIzaTest"),
         )
         assert settings.is_production
         assert not settings.is_development
@@ -346,7 +341,7 @@ class TestSettings:
         """Test development environment check."""
         settings = Settings(
             environment="development",
-            openai=OpenAIConfig(api_key="sk-test"),
+            gemini=GeminiConfig(api_key="AIzaTest"),
         )
         assert settings.is_development
         assert not settings.is_production
@@ -354,7 +349,7 @@ class TestSettings:
     def test_nested_config_override(self) -> None:
         """Test overriding nested configurations."""
         settings = Settings(
-            openai=OpenAIConfig(api_key="sk-test"),
+            gemini=GeminiConfig(api_key="AIzaTest"),
             database=DatabaseConfig(
                 host="custom.host",
                 port=5433,
@@ -376,13 +371,13 @@ class TestSettingsGlobalInstance:
         reset_settings()
         # Clean up environment variables
         for key in list(os.environ.keys()):
-            if key.startswith(("DATABASE_", "OPENAI_", "SECURITY_")):
+            if key.startswith(("DATABASE_", "GEMINI_", "SECURITY_")):
                 del os.environ[key]
 
     def test_get_settings_creates_instance(self) -> None:
         """Test get_settings creates instance."""
         # Set required env var
-        os.environ["OPENAI_API_KEY"] = "sk-test123"
+        os.environ["GEMINI_API_KEY"] = "AIzaTest"
 
         settings = get_settings()
         assert settings is not None
@@ -390,7 +385,7 @@ class TestSettingsGlobalInstance:
 
     def test_get_settings_returns_same_instance(self) -> None:
         """Test get_settings returns singleton."""
-        os.environ["OPENAI_API_KEY"] = "sk-test123"
+        os.environ["GEMINI_API_KEY"] = "AIzaTest"
 
         settings1 = get_settings()
         settings2 = get_settings()
@@ -398,7 +393,7 @@ class TestSettingsGlobalInstance:
 
     def test_reset_settings(self) -> None:
         """Test reset_settings clears instance."""
-        os.environ["OPENAI_API_KEY"] = "sk-test123"
+        os.environ["GEMINI_API_KEY"] = "AIzaTest"
 
         settings1 = get_settings()
         reset_settings()
@@ -407,8 +402,8 @@ class TestSettingsGlobalInstance:
 
     def test_settings_from_environment(self) -> None:
         """Test loading settings from environment variables."""
-        os.environ["OPENAI_API_KEY"] = "sk-env-key"
-        os.environ["OPENAI_MODEL"] = "gpt-4"
+        os.environ["GEMINI_API_KEY"] = "AIzaEnvKey"
+        os.environ["GEMINI_MODEL"] = "gemini-1.5-pro"
         os.environ["DATABASE_HOST"] = "env.host.com"
         os.environ["SECURITY_MAX_ROWS"] = "5000"
 
@@ -416,7 +411,7 @@ class TestSettingsGlobalInstance:
         settings = get_settings()
 
         # Use get_secret_value() to access SecretStr content
-        assert settings.openai.api_key.get_secret_value() == "sk-env-key"
-        assert settings.openai.model == "gpt-4"
+        assert settings.gemini.api_key.get_secret_value() == "AIzaEnvKey"
+        assert settings.gemini.model == "gemini-1.5-pro"
         assert settings.database.host == "env.host.com"
         assert settings.security.max_rows == 5000

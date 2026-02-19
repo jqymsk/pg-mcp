@@ -7,7 +7,7 @@
 # ============================================================================
 # Stage 1: Builder
 # ============================================================================
-# Use official Python 3.14 image as base
+# Use official Python 3.12 image as base
 FROM python:3.14-slim as builder
 
 # Set working directory

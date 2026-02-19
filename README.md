@@ -9,7 +9,7 @@
 
 ## 功能特性
 
-- **自然语言转 SQL**：使用 GPT-5.2-mini 将普通英文问题转换为优化的 PostgreSQL 查询
+- **自然语言转 SQL**：使用 Gemini 3 Flash 将普通英文问题转换为优化的 PostgreSQL 查询
 - **安全至上**：只读强制执行、阻止危险函数、SQL 注入防护、查询超时控制
 - **结果验证**：基于 AI 的结果验证，提供置信度评分
 - **Schema 智能化**：自动 Schema 缓存，基于 TTL 的刷新机制
@@ -20,9 +20,9 @@
 
 ### 前置条件
 
-- Python 3.14+
+- Python 3.12+
 - PostgreSQL 12+
-- OpenAI API 密钥（用于 GPT-5.2-mini）
+- Gemini API 密钥（用于 Gemini 3 Flash）
 - UV 包管理器（推荐）或 pip
 
 ### 安装
@@ -77,9 +77,9 @@ DATABASE_NAME=your_database
 DATABASE_USER=your_user
 DATABASE_PASSWORD=your_password
 
-# OpenAI 配置
-OPENAI_API_KEY=sk-your-api-key-here
-OPENAI_MODEL=gpt-5.2-mini
+# Gemini 配置
+GEMINI_API_KEY=AIzaSy...
+GEMINI_MODEL=gemini-3-flash-preview
 
 # 安全设置（可选，显示默认值）
 SECURITY_ALLOW_WRITE_OPERATIONS=false
@@ -126,7 +126,7 @@ python main.py
         "DATABASE_NAME": "your_database",
         "DATABASE_USER": "your_user",
         "DATABASE_PASSWORD": "your_password",
-        "OPENAI_API_KEY": "sk-your-api-key-here"
+        "GEMINI_API_KEY": "AIzaSy..."
       }
     }
   }
@@ -299,15 +299,15 @@ Return Type: sql
 | `DATABASE_MAX_POOL_SIZE`   | 池中最大连接数  | `20`        |
 | `DATABASE_COMMAND_TIMEOUT` | 查询超时（秒）    | `30`        |
 
-### OpenAI 设置
+### Gemini 设置
 
 | 变量                 | 描述                    | 默认值         |
 |----------------------|-------------------------|----------------|
-| `OPENAI_API_KEY`     | OpenAI API 密钥         | 必需           |
-| `OPENAI_MODEL`       | 使用的模型              | `gpt-5.2-mini` |
-| `OPENAI_MAX_TOKENS`  | 每次请求的最大 token 数 | `32000`        |
-| `OPENAI_TEMPERATURE` | 模型温度                | `0.0`          |
-| `OPENAI_TIMEOUT`     | API 超时（秒）            | `30`           |
+| `GEMINI_API_KEY`     | Gemini API 密钥         | 必需           |
+| `GEMINI_MODEL`       | 使用的模型              | `gemini-3-flash-preview` |
+| `GEMINI_MAX_TOKENS`  | 每次请求的最大 token 数 | `32000`        |
+| `GEMINI_TEMPERATURE` | 模型温度                | `0.0`          |
+| `GEMINI_TIMEOUT`     | API 超时（秒）            | `30`           |
 
 ### 安全设置
 
@@ -435,7 +435,7 @@ docker run -d \
   -e DATABASE_NAME=your-db \
   -e DATABASE_USER=your-user \
   -e DATABASE_PASSWORD=your-password \
-  -e OPENAI_API_KEY=sk-your-key \
+  -e GEMINI_API_KEY=AIzaSy... \
   -p 9090:9090 \
   pg-mcp:latest
 ```
@@ -505,17 +505,17 @@ Error: Connection to database failed
 psql -h $DATABASE_HOST -U $DATABASE_USER -d $DATABASE_NAME
 ```
 
-#### OpenAI API 错误
+#### Gemini API 错误
 
 ```
-Error: OpenAI API request failed
+Error: Gemini API request failed
 ```
 
 **解决方案**：
 
 1. 检查 API 密钥是否有效且有额度
 2. 验证网络连接
-3. 如果请求超时，检查 `OPENAI_TIMEOUT` 设置
+3. 如果请求超时，检查 `GEMINI_TIMEOUT` 设置
 
 #### 查询超时
 
@@ -574,8 +574,8 @@ uv run python main.py
         "DATABASE_NAME": "mydb",
         "DATABASE_USER": "postgres",
         "DATABASE_PASSWORD": "your-password",
-        "OPENAI_API_KEY": "sk-your-api-key-here",
-        "OPENAI_MODEL": "gpt-5.2-mini",
+        "GEMINI_API_KEY": "AIzaSy...",
+        "GEMINI_MODEL": "gemini-3-flash-preview",
         "SECURITY_MAX_ROWS": "10000",
         "CACHE_ENABLED": "true",
         "OBSERVABILITY_LOG_LEVEL": "INFO"
@@ -606,7 +606,7 @@ uv run python main.py
         "DATABASE_NAME": "mydb",
         "DATABASE_USER": "postgres",
         "DATABASE_PASSWORD": "your-password",
-        "OPENAI_API_KEY": "sk-your-api-key-here"
+        "GEMINI_API_KEY": "AIzaSy..."
       }
     }
   }

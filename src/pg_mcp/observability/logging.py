@@ -279,7 +279,7 @@ def configure_logging(
 
     # Reduce noise from third-party libraries
     logging.getLogger("asyncpg").setLevel(logging.WARNING)
-    logging.getLogger("openai").setLevel(logging.WARNING)
+    logging.getLogger("google.generativeai").setLevel(logging.WARNING)
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("httpcore").setLevel(logging.WARNING)
 
